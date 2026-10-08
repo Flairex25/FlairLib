@@ -156,8 +156,6 @@ function Signal.Fire<T...>(self: Signal<T...>, ...: T...)
 				currentConnection:Disconnect()
 			end
 			iterateConnections(next)
-		else
-			TaskService.Defer(function() end)
 		end
 	end
 	iterateConnections(self._firstConnection)
