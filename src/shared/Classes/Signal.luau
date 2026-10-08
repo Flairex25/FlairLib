@@ -71,6 +71,27 @@ local Connection = {} :: Connection<any>
 Connection.Type = "Connection"
 Connection.__index = Connection
 --------------------------------------------------------------------------------
+--Make Objects Strict
+setmetatable(Signal, {
+	------------------
+	__index = function(_:Signal<any>, key)
+		warn(string.format("Attempt to get invalid member %s of Signal!",key))
+	end,
+	__newindex = function(_:Signal<any>, key)
+		warn(string.format("Attempt to set invalid member %s of Signal!",key))
+	end,
+})
+--
+setmetatable(Connection, {
+	------------------
+	__index = function(_:Connection<any>, key)
+		warn(string.format("Attempt to get invalid member %s of Connection!",key))
+	end,
+	__newindex = function(_:Connection<any>, key)
+		warn(string.format("Attempt to set invalid member %s of Connection!",key))
+	end,
+})
+--------------------------------------------------------------------------------
 --Constructors
 const function signalConstructor<T...>(): Signal<T...>
 	return (setmetatable({}, Signal) :: any) :: Signal<T...>
@@ -135,8 +156,6 @@ function Signal.Fire<T...>(self: Signal<T...>, ...: T...)
 				currentConnection:Disconnect()
 			end
 			iterateConnections(next)
-		else
-			TaskService.Defer(function() end)
 		end
 	end
 	iterateConnections(self._firstConnection)
@@ -160,10 +179,15 @@ end
 
 --Wait
 function Signal.Wait<T...>(self: Signal<T...>): T...
-	local newConnnection = connectionConstructor(self, function() end)
-	connectToSignal(self, newConnnection)
-	newConnnection._thread = coroutine.running()
-	return coroutine.yield()
+	const waitingCoroutine = coroutine.running()
+	local newConnnection
+	local returnArgs
+	newConnnection = self:Connect(function(...:any)
+		returnArgs = ...
+		newConnnection:Disconnect()
+		coroutine.resume(waitingCoroutine)
+	end)
+	return coroutine.yield(returnArgs)
 end
 --------------------------------------------------------------------------------
 --Connection Methods

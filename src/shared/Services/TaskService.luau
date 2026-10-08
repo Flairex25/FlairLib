@@ -18,7 +18,7 @@ export type TaskService = {
 	-----------------------
 	Spawn: (fn: (...any) -> (), ...any) -> thread,
 	Defer: (fn: (...any) -> (), ...any) -> thread,
-	Delta: (duration: number, fn: (...any) -> (), ...any) -> thread,
+	Delay: (duration: number, fn: (...any) -> (), ...any) -> thread,
 	-----------------------
 }
 --------------------------------------------------------------------------------
