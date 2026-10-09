@@ -5,17 +5,15 @@ local Signal = require(shared.Classes.Signal)
 
 local event = Signal()
 
-coroutine.wrap(function()
-	while true do
-		print("Hi")
-		event:Wait()
-	end
-end)()
-
-event:Connect(function(msg: string)
-	print(msg)
+local newThread = coroutine.create(function()
+	print("Yielding...")
+	local timeBeforeYield = os.time()
+	local msg = event:Wait()
+	print(`Message "{msg}" received after {os.time() - timeBeforeYield}s!`)
 end)
 
-task.wait(3)
+coroutine.resume(newThread)
 
-event:Fire("Hello")
+task.wait(5)
+
+event:Fire("Hello from the Antontio and Rrrrrashaun squad!")

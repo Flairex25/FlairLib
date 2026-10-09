@@ -3,34 +3,36 @@
 --!nocheck
 --------------------------------------------------------------------------------
 --Directories
-const shared = game:GetService("ReplicatedStorage").Shared
+--------------------------------------------------------------------------------
+--const shared = game:GetService("ReplicatedStorage").Shared
 --------------------------------------------------------------------------------
 --Classes
+--------------------------------------------------------------------------------
 --const class = require(shared.Classes.class)
+const LinkedList = require("./Lists/LinkedList")
 --------------------------------------------------------------------------------
 --Services
+--------------------------------------------------------------------------------
 --const Service = require(shared.Services.Service)
-const TaskService = require(shared.Services.TaskService)
+const TaskService = require("../Services/TaskService")
 --------------------------------------------------------------------------------
 --Types
+--------------------------------------------------------------------------------
 export type Signal<T...> = {
 	-----------------
 	Type: "Signal",
 	-----------------
 	--Private
-	_firstConnection: Connection<T...>?,
-	_lastConnection: Connection<T...>?,
+	_list: LinkedList.LinkedList<Connection<T...>>,
 	-----------------
 	--Public
-	GetConnections: (self: Signal<T...>) -> { Connection<T...> },
-	GetFirstConnection: (self: Signal<T...>) -> Connection<T...>?,
-	GetLastConnection: (self: Signal<T...>) -> Connection<T...>?,
-	--
-	Fire: (self: Signal<T...>, T...) -> (),
-	--
-	Connect: (self: Signal<T...>, fn: (T...) -> (), ...any) -> Connection<T...>,
-	Once: (self: Signal<T...>, fn: (T...) -> (), ...any) -> Connection<T...>,
-	Wait: (self: Signal<T...>) -> T...,
+	Fire: (self:Signal<T...>,T...)->(),
+	-----------------
+	Connect: (self:Signal<T...>, fn: (T...)->(), ...any?)->Connection<T...>,
+	Once: (self:Signal<T...>, fn: (T...)->(), ...any?)->Connection<T...>,
+	Wait: (self:Signal<T...>)->(T...),
+	-----------------
+	DisconnectAll: (self:Signal<T...>)->(),
 	-----------------
 }
 --
@@ -40,29 +42,24 @@ export type Connection<T...> = {
 	-----------------
 	--Private
 	_signal: Signal<T...>,
-	_prev: Connection<T...>?,
-	_next: Connection<T...>?,
-	_fn: (T...) -> (),
-	_once: boolean,
+	_args: {any},
+	_function: (T...)->(),
 	_thread: thread?,
-	_args: { any },
+	_once: boolean,
+	_listNode: LinkedList.LinkedListNode<Connection<T...>>?,
 	-----------------
 	--Public
-	GetSignal: (self: Connection<T...>) -> Signal<T...>,
-	GetNext: (self: Connection<T...>) -> Connection<T...>?,
-	GetPrevious: (self: Connection<T...>) -> Connection<T...>?,
-	GetFunction: (self: Connection<T...>) -> (T...) -> (),
-	GetThread: (self: Connection<T...>) -> thread,
-	GetArgs: (self: Connection<T...>) -> ...any?,
-	--
-	Disconnect: (self: Connection<T...>) -> (),
-	Reconnect: (self: Connection<T...>) -> (),
+	Disconnect: (self: Connection<T...>)->(),
+	Reconnect: (self: Connection<T...>)->(),
+	GetPriority: (self: Connection<T...>)->number?,
+	SetPriority: (self: Connection<T...>, priority: number)->(),
+	Reassign: (self: Connection<T...>, fn: (T...)->(), ...any?)->(),
+	Remove: (self: Connection<T...>)->(),
 	-----------------
 }
 --------------------------------------------------------------------------------
 --Class
 --------------------------------------------------------------------------------
---Objects
 local Signal = {} :: Signal<any>
 Signal.Type = "Signal"
 Signal.__index = Signal
@@ -71,176 +68,111 @@ local Connection = {} :: Connection<any>
 Connection.Type = "Connection"
 Connection.__index = Connection
 --------------------------------------------------------------------------------
---Make Objects Strict
-setmetatable(Signal, {
-	------------------
-	__index = function(_:Signal<any>, key)
-		warn(string.format("Attempt to get invalid member %s of Signal!",key))
-	end,
-	__newindex = function(_:Signal<any>, key)
-		warn(string.format("Attempt to set invalid member %s of Signal!",key))
-	end,
-})
---
-setmetatable(Connection, {
-	------------------
-	__index = function(_:Connection<any>, key)
-		warn(string.format("Attempt to get invalid member %s of Connection!",key))
-	end,
-	__newindex = function(_:Connection<any>, key)
-		warn(string.format("Attempt to set invalid member %s of Connection!",key))
-	end,
-})
+--Constructor
 --------------------------------------------------------------------------------
---Constructors
 const function signalConstructor<T...>(): Signal<T...>
-	return (setmetatable({}, Signal) :: any) :: Signal<T...>
+	local self = (setmetatable({}, Signal) :: any) :: Signal<T...>
+	self._list = LinkedList()
+	return self
 end
 --
-const function connectionConstructor<T...>(signal: Signal<T...>, fn: (T...) -> (), ...: any): Connection<T...>
+const function connectionConstructor<T...>(signal: Signal<T...>, fn: (T...)->(), ...:any?): Connection<T...>
 	local self = (setmetatable({}, Connection) :: any) :: Connection<T...>
+	self._args = {...}
 	self._signal = signal
-	self._fn = fn
+	self._function = fn
 	self._once = false
-	self._args = { ... }
+	self._listNode = signal._list:InsertBack(self)
 	return self
 end
 --------------------------------------------------------------------------------
 --Private Functions
-
-const function connectToSignal<T...>(signal: Signal<T...>, connection: Connection<T...>)
-	if signal._lastConnection then
-		signal._lastConnection._next = connection
-		connection._prev = signal._lastConnection
-		signal._lastConnection = connection
-	else
-		signal._firstConnection = connection
-		signal._lastConnection = connection
-	end
-end
-
+--------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --Signal Methods
-
---Get Connections
-function Signal.GetConnections<T...>(self: Signal<T...>): { Connection<T...> }
-	local result = {}
-	const function iterateConnections(currentConnection: Connection<T...>?)
-		if currentConnection then
-			table.insert(result, currentConnection)
-			iterateConnections(currentConnection._next)
-		end
-	end
-	iterateConnections(self._firstConnection)
-	return result
-end
-
---Get First Connection
-function Signal.GetFirstConnection<T...>(self: Signal<T...>): Connection<T...>?
-	return self._firstConnection
-end
-
---Get Last Connection
-function Signal.GetLastConnection<T...>(self: Signal<T...>): Connection<T...>?
-	return self._lastConnection
-end
-
+--------------------------------------------------------------------------------
 --Fire
-function Signal.Fire<T...>(self: Signal<T...>, ...: T...)
-	const args = { ... }
-	const function iterateConnections(currentConnection: Connection<T...>?)
-		if currentConnection then
-			local next = currentConnection._next
-			TaskService.Defer(currentConnection._fn, table.unpack(args), table.unpack(currentConnection._args))
-			if currentConnection._once then
-				currentConnection:Disconnect()
-			end
-			iterateConnections(next)
+function Signal.Fire<T...>(self: Signal<T...>, ...:T...)
+	const args = ...
+	self._list:Iterate(function(_i:number, connection: Connection<T...>)
+		connection._thread = TaskService.Defer(connection._function, args, table.unpack(connection._args))
+		if connection._once then
+			connection:Disconnect()
 		end
-	end
-	iterateConnections(self._firstConnection)
-	return
+	end)
 end
-
 --Connect
-function Signal.Connect<T...>(self: Signal<T...>, fn: (T...) -> (), ...: any): Connection<T...>
-	local newConnection = connectionConstructor(self, fn, ...)
-	connectToSignal(self, newConnection)
-	return newConnection
+function Signal.Connect<T...>(self: Signal<T...>, fn: (T...)->(), ...:any?): Connection<T...>
+	return connectionConstructor(self, fn, ...)
 end
-
 --Once
-function Signal.Once<T...>(self: Signal<T...>, fn: (T...) -> (), ...: any): Connection<T...>
-	local newConnection = connectionConstructor(self, fn, ...)
-	connectToSignal(self, newConnection)
-	newConnection._once = true
-	return newConnection
+function Signal.Once<T...>(self: Signal<T...>, fn: (T...)->(), ...:any?): Connection<T...>
+	local connection = connectionConstructor(self, fn, ...)
+	connection._once = true
+	return connection
 end
-
 --Wait
 function Signal.Wait<T...>(self: Signal<T...>): T...
 	const waitingCoroutine = coroutine.running()
-	local newConnnection
-	local returnArgs
-	newConnnection = self:Connect(function(...:any)
-		returnArgs = ...
-		newConnnection:Disconnect()
-		coroutine.resume(waitingCoroutine)
+	local connection
+	connection = connectionConstructor(self, function(...:T...)
+		connection:Disconnect()
+		coroutine.resume(waitingCoroutine, ...)
 	end)
-	return coroutine.yield(returnArgs)
+	return coroutine.yield()
 end
 --------------------------------------------------------------------------------
 --Connection Methods
-
---Get Signal
-function Connection.GetSignal<T...>(self: Connection<T...>): Signal<T...>
-	return self._signal
-end
-
---Get Next
-function Connection.GetNext<T...>(self: Connection<T...>): Connection<T...>?
-	return self._next
-end
-
---Get Previous
-function Connection.GetPrevious<T...>(self: Connection<T...>): Connection<T...>?
-	return self._prev
-end
-
---Get Function
-function Connection.GetFunction<T...>(self: Connection<T...>): (T...) -> ()
-	return self._fn
-end
-
---Get Thread
-function Connection.GetThread<T...>(self: Connection<T...>): thread?
-	return self._thread
-end
-
---Get Args
-function Connection.GetArgs<T...>(self: Connection<T...>): ...any?
-	return table.unpack(self._args)
-end
-
+--------------------------------------------------------------------------------
 --Disconnect
 function Connection.Disconnect<T...>(self: Connection<T...>)
-	if self._prev then
-		self._prev._next = self._next
+	if self._listNode then
+		self._listNode:Remove()
+		self._listNode = nil
 	else
-		self._signal._firstConnection = self._next
+		warn("Cannot Disconnect! Connection is already disconnected.")
 	end
-	if self._next then
-		self._next._prev = self._prev
-	else
-		self._signal._lastConnection = self._prev
-	end
-	return
 end
-
 --Reconnect
 function Connection.Reconnect<T...>(self: Connection<T...>)
-	connectToSignal(self._signal, self)
-	return
+	if not self._listNode then
+		self._listNode = self._listNode:GetList():InsertBack(self)
+	else
+		warn("Cannot Reconnect! Connection is already connected.")
+	end
+end
+--Get Priority
+function Connection.GetPriority<T...>(self: Connection<T...>): number?
+	return self._listNode:GetIndex()
+end
+--Set Priority
+function Connection.SetPriority<T...>(self: Connection<T...>, priority: number)
+	if self._listNode then
+		priority = math.clamp(priority, 1, self._signal._list:GetSize())
+		self._listNode:Remove()
+		self._listNode:GetList():Insert(priority, self)
+		self._listNode = self._signal._list:Get(priority)
+	else
+		warn("Cannot set priority of disconnected Connection!")
+	end
+end
+--Reassign
+function Connection.Reassign<T...>(self: Connection<T...>, fn: (T...)->(), ...:any?)
+	self._function = fn
+	local args = {...}
+	if #args > 0 then
+		self._args = args
+	end
+end
+--Remove
+function Connection.Remove<T...>(self: Connection<T...>)
+	if self._listNode then
+		self._listNode:Remove()
+		self._listNode._list = nil
+		self._listNode._value = nil
+		self._listNode = nil
+	end
+	self = nil
 end
 --------------------------------------------------------------------------------
 return signalConstructor
