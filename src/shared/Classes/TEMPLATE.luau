@@ -46,6 +46,9 @@ Class.Type = "Class"
 local Obj = {} :: Obj<any>
 Obj.Type = "Obj"
 Obj.__index = Obj
+Obj.__newindex = function(self, key)
+	warn(`Attempt to index [{key}] of {self.Type}`)
+end
 --------------------------------------------------------------------------------
 --Constructor
 --------------------------------------------------------------------------------

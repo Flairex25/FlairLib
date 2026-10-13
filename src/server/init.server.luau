@@ -1,8 +1,15 @@
 --!strict
 
 local shared = game:GetService("ReplicatedStorage").Shared
-local Signal = require(shared.Classes.Signal)
 
-local event = Signal()
+--SERVER
+local NetworkEvent = require(shared.Classes.NetworkEvent)
 
-event:Fire("Hi")
+local incrementUserCoins = NetworkEvent("IncrementUserCoins")
+
+incrementUserCoins:OnServerInvoke(function(player: Player, coins: number)
+	--Do some check if player has right amount of coins
+	print(`Coins: {coins}`)
+	print(`Added 1 to {player.DisplayName}'s coins.`)
+	return coins + 1
+end)
