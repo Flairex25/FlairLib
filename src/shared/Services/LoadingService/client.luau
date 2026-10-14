@@ -1,0 +1,3 @@
+local LoadingServiceClient = {}
+
+return LoadingServiceClient
