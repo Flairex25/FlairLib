@@ -33,7 +33,7 @@ function TaskService.Spawn(fn: (...any) -> (), ...: any)
 end
 --
 function TaskService.Defer(fn: (...any) -> (), ...: any)
-	return task.spawn(table.remove(threads) or task.spawn(Thread), fn, ...)
+	return task.defer(table.remove(threads) or task.spawn(Thread), fn, ...)
 end
 --
 function TaskService.Delay(duration: number, fn: (...any) -> (), ...: any)
