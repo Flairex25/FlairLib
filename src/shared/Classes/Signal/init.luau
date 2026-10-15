@@ -91,6 +91,9 @@ end
 --------------------------------------------------------------------------------
 --Fire
 function Signal.Fire<T...>(self: Signal<T...>, ...:T...)
+	if self._list:IsEmpty() then
+		return
+	end
 	const args = {...}
 	self._list:Iterate(function(_i:number, connection: Connection<T...>)
 		connection._thread = TaskService.Defer(connection._function, table.unpack(args))

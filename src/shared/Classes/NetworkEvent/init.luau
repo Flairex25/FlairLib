@@ -14,6 +14,9 @@ const Signal = require("./Signal")
 --Services
 --------------------------------------------------------------------------------
 --const Service = require(shared.Services.Service)
+const RunService = game:GetService("RunService")
+const isServer = RunService:IsServer()
+const isClient = RunService:IsClient()
 --------------------------------------------------------------------------------
 --Types
 --------------------------------------------------------------------------------
@@ -46,14 +49,18 @@ const function networkEventConstructor<S..., C..., S2..., C2...>(eventName: stri
 	self.OnServerEvent = Signal()
 	self.OnClientEvent = Signal()
 	self = (setmetatable(self, NetworkEvent) :: any) :: NetworkEvent<S..., C..., S2..., C2...>
-	server.AddToEventList(self)
-	client.AddToEventList(self)
-	server.OnServerInvoke(self, function()
-		warn(`{NetworkEvent.Type} {eventName} does not have ServerInvoke callback. Please assign one.`)
-	end, true)
-	client.OnClientInvoke(self, function()
-		warn(`{NetworkEvent.Type} {eventName} does not have ClientInvoke callback. Please assign one.`)
-	end, true)
+	if isServer then
+		server.AddToEventList(self)
+		server.OnServerInvoke(self, function()
+			warn(`{NetworkEvent.Type} {eventName} does not have ServerInvoke callback. Please assign one.`)
+		end)
+	end
+	if isClient then
+		client.AddToEventList(self)
+		client.OnClientInvoke(self, function()
+			warn(`{NetworkEvent.Type} {eventName} does not have ClientInvoke callback. Please assign one.`)
+		end)
+	end
 	return self :: NetworkEvent<S..., C..., S2..., C2...>
 end
 --------------------------------------------------------------------------------
@@ -65,27 +72,53 @@ end
 --------------------------------------------------------------------------------
 --FireServer
 function NetworkEvent.FireServer(self, ...) --Client
-	client.FireServer(self, ...)
+	if isClient then
+		client.FireServer(self, ...)
+	else
+		warn("Cannot call FireServer(...) from server! Please use FireClient(player, ...) instead!")
+	end
 end
 --FireClient
 function NetworkEvent.FireClient(self, player, ...) --Server
-	server.FireClient(self, player, ...)
+	if isServer then
+		server.FireClient(self, player, ...)
+	else
+		warn("Cannot call FireClient(player, ...) from client! Please use FireServer(...) instead!")
+	end
 end
 --InvokeServer
 function NetworkEvent.InvokeServer(self, ...) --Client
-	return client.InvokeServer(self, ...)
+	if isClient then
+		return client.InvokeServer(self, ...)
+	else
+		warn("Cannot call InvokeServer(...) from server! Please use InvokeClient(player, ...) instead!")
+		return
+	end
 end
 --InvokeClient
 function NetworkEvent.InvokeClient(self, player, ...) --Server
-	return server.InvokeClient(self, player, ...)
+	if isServer then
+		return server.InvokeClient(self, player, ...)
+	else
+		warn("Cannot call InvokeClient(player, ...) from client! Please use InvokeServer(...) instead!")
+		return
+	end
 end
 --OnServerInvoke
 function NetworkEvent.OnServerInvoke(self, callback) --Server
-	server.OnServerInvoke(self, callback)
+	if isServer then
+		server.OnServerInvoke(self, callback)
+	else
+		warn("Cannot set OnServerInvoke from server! Please use OnClientInvoke instead!")
+	end
 end
 --OnClientInvoke
 function NetworkEvent.OnClientInvoke(self, callback) --Client
-	client.OnClientInvoke(self, callback)
+	if isClient then
+		client.OnClientInvoke(self, callback)
+	else
+		warn("Cannot set OnClientInvoke from server! Please use OnServerInvoke instead!")
+	end
 end
 --------------------------------------------------------------------------------
 return networkEventConstructor

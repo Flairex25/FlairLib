@@ -53,8 +53,21 @@ export type ModuleParams = {
 	-----------------------
 }
 ---------------------------------------------------------------------------------------
-local _Signal = require(shared.Classes.Signal)
-local _NetworkEvent = require(shared.Classes.NetworkEvent)
+export type SharedModule = {
+	------------------------
+	Type: string,
+	------------------------
+	Params: SharedParams?,
+	------------------------
+}
+export type SharedParams = {
+	------------------------
+	ToServer: boolean,
+	------------------------
+}
+---------------------------------------------------------------------------------------
+--local Signal = require(shared.Classes.Signal)
+--local NetworkEvent = require(shared.Classes.NetworkEvent)
 ---------------------------------------------------------------------------------------
 
 ---------------------------------------------------------------------------------------

@@ -1,7 +1,17 @@
 ----!strict
+
+print("Comparing apples to oranges!")
+local apples = 4
+local oranges = 2
+print(`I have a total of {apples + oranges} apples and oranges.`)
+print("I found 2 more apples!")
+apples += 2
+print(`I have a total of {apples + oranges} apples and oranges.`)
 -------------------------------------------------------------------------------------------------------------------------------
 const shared = game:GetService("ReplicatedStorage").Shared
 const server = script
+const toServerDirectory = server.ToServerDirectory
+const toServerPointer = toServerDirectory.ToServerPointer
 -------------------------------------------------------------------------------------------------------------------------------
 --Classes
 --const Signal = require(shared.Classes.Signal)
@@ -9,10 +19,61 @@ const server = script
 --Services
 const ModuleService = require(shared.Services.ModuleService)
 -------------------------------------------------------------------------------------------------------------------------------
+const serverModuleBlacklist = {
+	server.Packages,
+	toServerDirectory,
+} :: {Folder}
+-------------------------------------------------------------------------------------------------------------------------------
 local moduleList = {} :: { ModuleService.ServerModule }
 local startList = {} :: { ModuleService.ServerModule }
+local sharedModuleList = {} :: { ModuleService.SharedModule }
 -------------------------------------------------------------------------------------------------------------------------------
 local currentModuleID = 0
+local serverPointerID = 0
+-------------------------------------------------------------------------------------------------------------------------------
+--Hide Server Modules
+const function SharedModuleLoop(moduleScript: ModuleScript)
+	-------------------------------------------------------
+	local module: ModuleService.SharedModule
+	--
+	local success, errorMsg = pcall(function()
+		module = require(moduleScript) :: ModuleService.SharedModule
+	end)
+	--
+	if not success then
+		warn(`Error loading shared Class or Service '{moduleScript.Name}': {errorMsg}`)
+	end
+	--
+	if typeof(module) ~= typeof({}) then
+		return
+	end
+	if module.Params then
+		table.insert(sharedModuleList, module)
+		--Move to Server
+		if module.Params.ToServer then
+			const parent = moduleScript.Parent
+			const pointerName = `{serverPointerID}-{moduleScript.Name}`
+			const moduleName = moduleScript.Name
+			const newPointer = toServerPointer:Clone() :: ModuleScript
+			newPointer.Name = moduleName
+			newPointer:SetAttribute("PointerName",pointerName)
+			newPointer:SetAttribute("ServerIgnore",true)
+			newPointer.Parent = parent
+			moduleScript.Name = pointerName
+			moduleScript.Parent = toServerDirectory
+			serverPointerID += 1
+		end
+	else
+		return
+	end
+	-------------------------------------------------------
+end
+--
+for _, module in ipairs(shared:GetDescendants()) do
+	if module:IsA("ModuleScript") and not module:GetAttribute("ServerIgnore") then
+		SharedModuleLoop(module)
+	end
+end
 -------------------------------------------------------------------------------------------------------------------------------
 --Process Return Codes
 const function ProcessReturnCode(module: ModuleService.ServerModule, returnCode: number | nil, functionName: string)
@@ -120,6 +181,23 @@ const function ProcessModuleFunctionPCall(
 	end
 end
 -------------------------------------------------------------------------------------------------------------------------------
+const function CheckServerBlacklist(moduleScript: ModuleScript)
+	-----------------------------------------------------------
+	local highestFolder
+	-----------------------------------------------------------
+	const function ancestorLoop(currentInstance: Instance)
+		const folder = currentInstance:FindFirstAncestorOfClass("Folder")
+		if folder then
+			ancestorLoop(folder)
+		else
+			highestFolder = currentInstance
+		end
+	end
+	-----------------------------------------------------------
+	ancestorLoop(moduleScript)
+	return (table.find(serverModuleBlacklist, highestFolder) ~= nil)
+end
+-------------------------------------------------------------------------------------------------------------------------------
 const function AddModulesToList(moduleScript: ModuleScript)
 	------------------------------------------------------
 	local module = {} :: ModuleService.ServerModule
@@ -185,6 +263,9 @@ end
 --Add Modules
 for _, moduleScript in ipairs(server:GetDescendants()) do
 	if moduleScript:IsA("ModuleScript") then
+		if CheckServerBlacklist(moduleScript) then
+			continue
+		end
 		coroutine.wrap(function()
 			AddModulesToList(moduleScript)
 		end)()
