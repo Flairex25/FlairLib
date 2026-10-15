@@ -1,3 +1,4 @@
+--!nocheck
 --------------------------------------------------------------------------------
 --Services
 --------------------------------------------------------------------------------
@@ -18,6 +19,9 @@ end
 --Initialize
 --------------------------------------------------------------------------------
 local NetworkEventServer = {}
+NetworkEventServer.Params = {
+	['ToServer'] = true,
+}
 --
 local eventList = {} :: { NetworkEvent }
 --
@@ -43,33 +47,14 @@ function NetworkEventServer.AddToEventList<S..., C...>(event: NetworkEvent<S...,
 end
 --FireClient
 function NetworkEventServer.FireClient<S..., C...>(event: NetworkEvent<S..., C...>, player: Player, ...: any)
-	if not checkRunContext() then
-		warn("Cannot call FireClient(player, ...) from client! Please use FireServer(...) instead!")
-		return
-	end
 	remoteEvent:FireClient(player, event.Name, ...)
 end
 --InvokeClient
 function NetworkEventServer.InvokeClient<S..., C...>(_event: NetworkEvent<S..., C...>, player: Player, ...: any)
-	if not checkRunContext() then
-		warn("Cannot call InvokeClient(player, ...) from client! Please use InvokeServer(...) instead!")
-		return
-	end
 	return remoteFunction:InvokeClient(player, ...)
 end
 --OnServerInvoke
-function NetworkEventServer.OnServerInvoke<S..., C...>(
-	event: NetworkEvent<S..., C...>,
-	callback: (player: Player, S...) -> C...,
-	bypass: boolean?
-)
-	if not checkRunContext() then
-		if bypass then
-			return
-		end
-		warn("Cannot set OnServerInvoke from server! Please use OnClientInvoke instead!")
-		return
-	end
+function NetworkEventServer.OnServerInvoke<S..., C...>(event: NetworkEvent<S..., C...>, callback: (player: Player, S...) -> C...)
 	event._serverInvokeCallback = callback
 	remoteFunction.OnServerInvoke = event._serverInvokeCallback
 end

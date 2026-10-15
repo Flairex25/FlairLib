@@ -10,12 +10,12 @@
 --Classes
 --------------------------------------------------------------------------------
 --const class = require(shared.Classes.class)
-const LinkedList = require("./Lists/LinkedList")
+const LinkedList = require("../Lists/LinkedList")
 --------------------------------------------------------------------------------
 --Services
 --------------------------------------------------------------------------------
 --const Service = require(shared.Services.Service)
-const TaskService = require("../Services/TaskService")
+const TaskService = require("../../Services/TaskService")
 --------------------------------------------------------------------------------
 --Types
 --------------------------------------------------------------------------------
